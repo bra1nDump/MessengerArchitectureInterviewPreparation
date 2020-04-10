@@ -8,15 +8,38 @@ import androidx.ui.input.*
 import androidx.ui.layout.*
 import androidx.ui.material.*
 import androidx.ui.tooling.preview.Preview
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import java.util.*
+import java.util.concurrent.ThreadLocalRandom
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // initial state
+        var state: MessengerState = MessengerState.sample()
+        var navigationState: NavigationState = NavigationState()
+
+        // Server mock
+        GlobalScope.launch {
+            while (true) {
+                delay(1000)
+
+                launch(Dispatchers.Main) {
+                    if (ThreadLocalRandom.current().nextBoolean())
+                        state.chats = state.chats.plus(ChatState.sample())
+                    else {
+                        var chat = state.chats.random()
+                        chat.messages = chat.messages.plus("Laaaaal")
+                    }
+                }
+            }
+        }
+
         setContent {
             MaterialTheme {
-                Messenger()
+                Messenger(state, navigationState)
             }
         }
     }
@@ -48,6 +71,11 @@ data class MessengerState(
 @Model
 data class NavigationState(
     var visibleChatId: UUID? = null
+)
+
+data class ServerMessage(
+    var chat: UUID,
+    var newMessages: List<String>
 )
 
 @Preview

@@ -40,6 +40,13 @@ this should offload cognitive stress. What is better
   fun display(message = Message.sample())
   ? Arguably a good idea
 
+# Challenges of Kotlin Native
+Keeping IO and concurrent code shared sounds pretty complicated. Both iOS and Android have
+different ways of handling IO and concurrency, some good common ground interface is needed.
+Ideally that will allow both platforms to use their best capabilities.
+Examples:
+Kotlin JVM has good support for coroutines, but Swift doesn't. What about GCD?
+
 # Log
 
 Initial commit
@@ -77,5 +84,19 @@ chat only happen when the user clicks send on the TextField. What if we get a me
 A good next step would be to do either of these:
     - Write business logic tests
     - Write a mock server that will be emitting new messages to random chats
+
+Problem I faced - Compose uses an experimental Kotlin compiler
+and it doesn't support coroutines well :(
+Example Flow<T>.collect function doesn't work (fails at compile time)
+
+# Commit
+* Added daemon server mock that
+    - Creates new chats
+    - Adds a new message to one of the existing chats
+* Moved state creation to the Activity level
+
+Next commit goal - make things worse, add loading states
+
+
 
 
