@@ -95,7 +95,27 @@ Example Flow<T>.collect function doesn't work (fails at compile time)
     - Adds a new message to one of the existing chats
 * Moved state creation to the Activity level
 
-Next commit goal - make things worse, add loading states
+Next commit goal - make things worse, add sending to mock api logic
+
+Here is a code snippet from when the user clicks send
+```
+    state.messages = state.messages.plus(state.current)
+    sendMessage(state.current)
+    state.current = ""
+```
+I think this just got way too ugly and out of the scope of View acceptable logic.
+Achievement complete - make things worse!
+Now if we think about adding failure handling of sending the message..
+And that would of course be asynchronous. And then we of course if it fails
+want to add it to the queue of messages that need to be resent when network
+gets connected .. after N unsuccessful sends... that sounds about right.
+And also add this to the persistence layer so when the user reopens the app
+they see the correct messages. And we also want to add analytics to this event.
+We are totally screwed at this point.
+
+Right now we got ourselves a good hackathon base project for managing 2 screens
+of a messenger. But they are horrible screens. They barely do anything, are not
+testable and so on.
 
 
 

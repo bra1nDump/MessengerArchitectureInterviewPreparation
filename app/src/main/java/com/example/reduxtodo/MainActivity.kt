@@ -13,7 +13,11 @@ import kotlinx.coroutines.flow.*
 import java.util.*
 import java.util.concurrent.ThreadLocalRandom
 
-class MainActivity : AppCompatActivity() {
+interface ApiClient {
+    fun sendAsync(chatId: UUID, message: String) : Deferred<Boolean>
+}
+
+class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -37,9 +41,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val apiClient = object : ApiClient {
+            override fun sendAsync(chatId: UUID, message: String) : Deferred<Boolean> {
+                println("Trying to send message ...")
+                // TODO: This might fail, several problems arrise from it
+                // Need to handle error if it does fail? Or maybe just never marked this message
+                // as sent?
+                // Need to keep unsent messges in a separate collection? Or just keep in chats?
+                // but if we do keep them in chats this might be a problem since
+                return async {
+                    delay(500)
+                    true
+                }
+            }
+        }
+
         setContent {
             MaterialTheme {
-                Messenger(state, navigationState)
+                App(state, navigationState, apiClient)
             }
         }
     }
@@ -50,7 +69,10 @@ data class ChatState(
     var id: UUID = UUID.randomUUID(),
     var messages: List<String>,
     // this is local and should be lost if not commited
-    var current: String = ""
+    // actually thats not true. A good messenger will not loose your typing progress
+    // even if you leave the chat
+    var current: String = "",
+    var failedToSendMessages: List<String> = listOf()
 ) {
     companion object {
         fun sample() : ChatState = ChatState(messages = mutableListOf("Lol", "Petux"))
@@ -73,36 +95,49 @@ data class NavigationState(
     var visibleChatId: UUID? = null
 )
 
-data class ServerMessage(
-    var chat: UUID,
-    var newMessages: List<String>
-)
-
-@Preview
 @Composable
-fun Messenger(
+fun App(
     state: MessengerState = MessengerState.sample(),
-    navigationState: NavigationState = NavigationState()
+    navigationState: NavigationState = NavigationState(),
+    apiClient: ApiClient
 ) {
+    // TODO: Desired interface - props.currentScreen
     when (val chatId = navigationState.visibleChatId) {
-        null ->  Column {
-            state.chats.forEach {
-                Button(
-                    text = "${it.id} ${it.messages.last()}",
-                    onClick = { navigationState.visibleChatId = it.id }
+        null -> Messenger(state, navigationState)
+        else ->
+            // TODO: will fail silently here if chat not found
+            state.chats.find { it.id == chatId }?.let {
+                val chatId = it.id
+                Chat(
+                    it,
+                    sendMessage = { message -> apiClient.sendAsync(chatId, message) },
+                    navigateBack = { navigationState.visibleChatId = null }
                 )
             }
-        }
-        else -> Chat(
-            state.chats.find { it.id == chatId }!!,
-            navigateBack = { navigationState.visibleChatId = null }
-        )
     }
 }
 
-@Preview
 @Composable
-fun Chat(state: ChatState = ChatState.sample(), navigateBack: () -> Unit = {}) {
+fun Messenger(
+    state: MessengerState,
+    navigationState: NavigationState
+) {
+    Column {
+        state.chats.forEach {
+            Button(
+                text = "${it.id} ${it.messages.last()}",
+                onClick = { navigationState.visibleChatId = it.id }
+            )
+        }
+    }
+}
+
+@Composable
+fun Chat(
+    state: ChatState = ChatState.sample(),
+    sendMessage: (String) -> Deferred<Boolean>,
+    navigateBack: () -> Unit = {}
+) {
     Column(Spacing(5.dp)) {
         Button("Back", navigateBack)
 
@@ -125,8 +160,22 @@ fun Chat(state: ChatState = ChatState.sample(), navigateBack: () -> Unit = {}) {
                     imeAction = ImeAction.Send,
                     onImeActionPerformed = {
                         if (it == ImeAction.Send) {
-                            state.messages = state.messages.plus(state.current)
+                            // ok this is getting reaaly ugly
+                            val messageToSend = state.current
                             state.current = ""
+                            GlobalScope.launch {
+                                val success = sendMessage(messageToSend).await()
+
+                                MainScope().launch {
+                                    if (success) {
+                                        println("success, adding to sent messages!")
+                                        state.messages = state.messages.plus(messageToSend)
+                                    } else {
+                                        println("failed to send, adding to queue")
+                                        state.failedToSendMessages = state.failedToSendMessages.plus(messageToSend)
+                                    }
+                                }
+                            }
                         }
                     }
                 )
