@@ -117,6 +117,39 @@ Right now we got ourselves a good hackathon base project for managing 2 screens
 of a messenger. But they are horrible screens. They barely do anything, are not
 testable and so on.
 
+Also fun bug that happened. When running a callback to produce a Deferred to send a message
+an exception was thrown - I was accessing a var field of the Chat model (var id: UUID)
+and the getter failed. Looks like variable capturing in lambda's doesn't work as safely 
+as I expected. To address it I made an immutable copy of the id outside of the 
+lambda scope and then used that new value in a coroutine without a problem.
+
+An interesting trick is to try over-engineer the data model on purpose, and then 
+trim it. This will allow to think 
+
+-----
+
+A lot of problems arose during this phase. Mostly these two:
+* Coroutines default scopes didnt want to work when running in test environment.
+  To resolve added the coroutines-test library and used runBlockingTest coroutine builder
+  from it that created test coroutine scope reference to which I later passed to
+  the State constructor and later used internally when running dispatch.
+  The builder also blocked the current thread until the job associated
+  with the coroutine scope was complete
+* When testing it made sense to pass the reducer to the Store constructor 
+  as a lambda - only used locally and to spare type annotations and names.
+  The problem was with returning from that lambda. It yelled that a non local
+  return was used, when no return was used at all! I suspect some sort of 
+  compiler bug. I read some docs about inlining and crossinlining. 
+  Tried to put crossinline attribute to the Store constructor, but 
+  apparently this is only allowed in function arguments.
+  Regular named functions were used as reducers and passed as ::funcName
+
+Commit 
+* Added Store, Action, Command concepts, pretty much stolen from Fabulous/Elm
+* Tested Store, Action, Command
+* Removed old state management code
+
+
 
 
 
