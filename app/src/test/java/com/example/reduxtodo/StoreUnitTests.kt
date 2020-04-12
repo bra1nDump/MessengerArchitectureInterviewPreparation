@@ -5,11 +5,7 @@ import kotlinx.coroutines.test.*
 import org.junit.*
 import org.junit.Assert.*
 
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
+@ExperimentalCoroutinesApi
 class StoreUnitTests {
 
     @Test
@@ -20,7 +16,7 @@ class StoreUnitTests {
 
         // state - counter
         // action - increment
-        var store = Store<Int, Int>(
+        val store = Store<Int, Int>(
             state = 0,
             reducer = ::reducer,
             coroutineScope = this
@@ -36,8 +32,8 @@ class StoreUnitTests {
         val inc = 1
         fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return when (action) {
-                incCommand -> return Tuple(state, Command.Action(inc))
-                inc -> return Tuple(state + 1, Command.None())
+                incCommand -> Tuple(state, Command.Action(inc))
+                inc -> Tuple(state + 1, Command.None())
                 else -> throw error("unexpected action")
             }
         }
@@ -59,12 +55,12 @@ class StoreUnitTests {
         fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return when (action) {
                 incCommand -> {
-                    val `2 increments` = Command.Batch<Int>(listOf(
+                    val twoIncrements = Command.Batch<Int>(listOf(
                         Command.Action(inc), Command.Action(inc)
                     ))
-                    return Tuple(state, `2 increments`)
+                    Tuple(state, twoIncrements)
                 }
-                inc -> return Tuple(state + 1, Command.None())
+                inc -> Tuple(state + 1, Command.None())
                 else -> throw error("unexpected action")
             }
         }
@@ -94,9 +90,9 @@ class StoreUnitTests {
                             dispatch(inc)
                         }
                     }
-                    return Tuple(state, incWithDelay)
+                    Tuple(state, incWithDelay)
                 }
-                inc -> return Tuple(state + 1, Command.None())
+                inc -> Tuple(state + 1, Command.None())
                 else -> throw error("unexpected action")
             }
         }

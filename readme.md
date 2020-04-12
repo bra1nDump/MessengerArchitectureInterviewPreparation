@@ -149,6 +149,23 @@ Commit
 * Tested Store, Action, Command
 * Removed old state management code
 
+----
+
+Actual almost committed, but while writing commit message realized I forgot to test
+whether the redelivery count can drop below zero. And I caught a bug! 
+I had a variable local message that I kept changing and an outer while loop
+that was checking whether the delivery attempts counter dropped to zero or not.
+The bug: in the while condition I was checking the initial immutable local message
+delivery count, that of course, remained constant. So when I set MockApiClient(attemptsBeforeSuccess = 10)
+the attempts count on the local message were -7. Maybe a good idea is to actually 
+do some validation in the init {} block for data types and throw errors if they were constructed 
+with weird values (like in this case Message.Local)
+
+Commit 
+* Added Experimental annotations to test classes since using unstable coroutine-test functions
+* Refactored AppStoreUnitTests.kt: removed boilerplate code that sets up store
+* Added tests for redelivery - passing
+
 
 
 

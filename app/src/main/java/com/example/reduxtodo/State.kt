@@ -17,7 +17,7 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
             fun messageDeliveryUpdates(dispatch: (Action) -> Unit) : Unit {
                 coroutineScope.launch {
                     var message = outgoingMessage.copy()
-                    while (outgoingMessage.deliveryAttemptsLeft != 0) {
+                    while (message.deliveryAttemptsLeft != 0) {
                         when (val result = state.apiClient.sendAsync(message).await()) {
                             is Ok -> {
                                 val remoteMessage = result.result
