@@ -7,7 +7,7 @@ import org.junit.*
 import org.junit.Assert.*
 
 @ExperimentalCoroutinesApi
-class AppStoreUnitTests {
+class SendMessageUnitTests {
 
     // moved to class level to avoid injecting into MockApiClient
     companion object {
@@ -106,15 +106,21 @@ class AppStoreUnitTests {
     fun `if cant deliver message at all, should not drop attempts count below zero`() = testCoroutineScope.runBlockingTest {
         prepare(MockApiClient(50))
         store.dispatch(sendMessage)
-
-        // this is pretty ugly. Ideally we would want to actually have the sample
-        // message here, but we also want to hide the construction of the message
-        // within the reducer .. hmm dilemma
-        val pendingFirstAttemptMessage = store.state.messages.first() as Message.Local
         delay(responseDelay * 10)
         assertEquals(
             0,
             (store.state.messages.first() as Message.Local).deliveryAttemptsLeft
+        )
+    }
+
+    @Test
+    fun `sending message to a non-existing chat creates that chat`() = testCoroutineScope.runBlockingTest {
+        prepare(MockApiClient(0))
+        store.dispatch(sendMessage)
+
+        assertEquals(
+            1,
+            store.state.chats.count()
         )
     }
 }

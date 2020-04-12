@@ -72,18 +72,21 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
             )
         }
         is Action.ApplyUpdates -> {
-            val newMessages =
+            val messages =
                 action.updates.fold(
                     state.messages,
                     { messages, update ->
                         when (update) {
                             is Update.NewMessage -> messages + update.message
-                            is Update.DeleteMessage -> messages.filterNot { it.messageId == update.messageId }
+                            is Update.DeleteMessage -> messages.filterNot { it.id() == update.messageId }
                         }
                     }
                 )
+            // this +/- logic probably needs testing of its own :)
+            val newMessages = messages - state.messages
+            val newChatIds: List<ChatId> = newMessages.map { it.chatId() } - state.chats
             return Tuple(
-                state.copy(messages = newMessages),
+                state.copy(messages = messages, chats = state.chats + newChatIds),
                 Command.None()
             )
         }
@@ -138,8 +141,8 @@ sealed class Message {
         val timestamp: LocalDateTime = LocalDateTime.now()
     ) : Message()
 
-    val messageId: MessageId
-        get() = when (this) { is Local -> this.id; is Remote -> this.id }
+    fun id() = when (this) { is Local -> this.id; is Remote -> this.id }
+    fun chatId() = when (this) { is Local -> this.chatId; is Remote -> this.chatId }
 }
 
 data class MessageContent(val text: String)
