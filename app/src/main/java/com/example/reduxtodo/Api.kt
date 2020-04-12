@@ -12,5 +12,7 @@ interface ApiClient {
     fun sendAsync(message: Message.Local) : Deferred<Result<Message.Remote, Error>>
 
     // TODO: Once kotlin compose compiler fixes Flow support this should be a flow
-    fun subscibeToUpdates(handleUpdates: (List<Update>) -> Unit)
+    fun subscibeToUpdates(handleUpdates: (List<Update>) -> Unit) = {
+        throw error("not implemented")
+    }
 }

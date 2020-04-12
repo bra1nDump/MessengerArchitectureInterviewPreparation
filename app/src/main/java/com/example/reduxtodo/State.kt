@@ -2,76 +2,10 @@ package com.example.reduxtodo
 import kotlinx.coroutines.*
 import java.time.LocalDateTime
 import java.util.*
-import kotlin.coroutines.CoroutineContext
-
-// MARK: redux library
-class Store<State, Action>(
-    var state: State,
-    val reducer: (Action, State) -> Tuple<State, Command<Action>>,
-    // a function will be passed that will need a way to dispatch actions
-    // we are in charge of injecting this action handling function (dispatch)
-    private val  subscription: ((Action) -> Unit) -> Unit = {},
-    private val coroutineScope: CoroutineScope = MainScope()
-) {
-    init {
-        // need to subscribe to updates if any
-        subscription(::dispatch)
-    }
-
-    fun dispatch(action: Action) {
-        coroutineScope.launch {
-            val (newState, command) = reducer(action, state)
-            state = newState
-
-            // dispatch all actions
-            command.actions().forEach {
-                dispatch(it.action)
-            }
-
-            // start newly created subscribtions
-            command.flows().forEach {
-                it.subscription(::dispatch)
-            }
-        }
-    }
-}
-
-// MARK: Our state and reducer
-data class AppState(
-    val apiClient: ApiClient,
-    val localUserId: UserId,
-    val messages: List<Message>,
-    val chats: List<ChatId>
-)
-
-data class Tuple<First, Second>(val first: First, val second: Second)
-
-sealed class Command<Action> {
-    data class Action<Action>(val action: Action) : Command<Action>()
-    data class Flow<Action>(val subscription: ((Action) -> Unit) -> Unit) : Command<Action>()
-    data class Batch<Action>(val commands: List<Command<Action>>) : Command<Action>()
-    class None<Action>() : Command<Action>()
-
-    fun actions() : List<Command.Action<Action>> {
-        return when (this) {
-            is Command.Action -> listOf(this)
-            is Batch -> commands.flatMap { it.actions() }
-            else -> listOf()
-        }
-    }
-
-    fun flows() : List<Command.Flow<Action>> {
-        return when (this) {
-            is Flow -> listOf(this)
-            is Batch -> commands.flatMap { it.flows() }
-            else -> listOf()
-        }
-    }
-}
 
 // ideally the reducer will return something like this Flow<Action>
 // that would support running
-fun appReducer(action: Action, state: AppState) : Tuple<AppState, Command<Action>> {
+fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) : Tuple<AppState, Command<Action>> {
     when (action) {
         is Action.SendMessage -> {
             val outgoingMessage = Message.Local(
@@ -81,7 +15,7 @@ fun appReducer(action: Action, state: AppState) : Tuple<AppState, Command<Action
             )
 
             fun messageDeliveryUpdates(dispatch: (Action) -> Unit) : Unit {
-                GlobalScope.launch {
+                coroutineScope.launch {
                     var message = outgoingMessage.copy()
                     while (outgoingMessage.deliveryAttemptsLeft != 0) {
                         when (val result = state.apiClient.sendAsync(message).await()) {
@@ -173,6 +107,14 @@ sealed class Update {
     // TODO: private
     data class DeleteMessage(val messageId: MessageId) : Update()
 }
+
+// MARK: Our state and reducer
+data class AppState(
+    val apiClient: ApiClient,
+    val localUserId: UserId,
+    val messages: List<Message> = listOf(),
+    val chats: List<ChatId> = listOf()
+)
 
 data class UserId(val value: String)
 data class ChatId(val value: String)

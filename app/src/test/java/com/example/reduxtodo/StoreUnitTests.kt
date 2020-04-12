@@ -14,7 +14,7 @@ class StoreUnitTests {
 
     @Test
     fun `action updates state`() = runBlockingTest {
-        fun reducer(action: Int, state: Int): Tuple<Int, Command<Int>> {
+        fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return Tuple(state + action, Command.None())
         }
 
@@ -34,7 +34,7 @@ class StoreUnitTests {
     fun `action returned in command changes state`() = runBlockingTest {
         val incCommand = 0
         val inc = 1
-        fun reducer(action: Int, state: Int): Tuple<Int, Command<Int>> {
+        fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return when (action) {
                 incCommand -> return Tuple(state, Command.Action(inc))
                 inc -> return Tuple(state + 1, Command.None())
@@ -56,7 +56,7 @@ class StoreUnitTests {
     fun `batch command updates state`() = runBlockingTest {
         val incCommand = 0
         val inc = 1
-        fun reducer(action: Int, state: Int): Tuple<Int, Command<Int>> {
+        fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return when (action) {
                 incCommand -> {
                     val `2 increments` = Command.Batch<Int>(listOf(
@@ -83,7 +83,7 @@ class StoreUnitTests {
     fun `flow command updates state`() = runBlockingTest {
         val incCommand = 0
         val inc = 1
-        fun reducer(action: Int, state: Int): Tuple<Int, Command<Int>> {
+        fun reducer(scope: CoroutineScope, action: Int, state: Int): Tuple<Int, Command<Int>> {
             return when (action) {
                 incCommand -> {
                     val incWithDelay = Command.Flow<Int> { dispatch ->
