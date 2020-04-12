@@ -26,34 +26,33 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 }
 
+sealed class Screen {
+    object Chats: Screen()
+    data class Chat(val chatId: ChatId): Screen()
+}
+
 @Model
-data class ChatState(
-    var id: UUID = UUID.randomUUID(),
-    var messages: List<String>,
-    // this is local and should be lost if not commited
-    // actually thats not true. A good messenger will not loose your typing progress
-    // even if you leave the chat
-    var current: String = "",
-    var failedToSendMessages: List<String> = listOf()
-) {
-    companion object {
-        fun sample() : ChatState = ChatState(messages = mutableListOf("Lol", "Petux"))
+data class NavigationState(
+    var screen: Screen = Screen.Chats
+)
+
+@Composable
+fun App(navigationState: NavigationState = NavigationState()) {
+    when (val screen = navigationState.screen) {
+        is Screen.Chats -> Messenger(openChat = { chatId -> navigationState.screen = Screen.Chat(chatId) })
+        is Screen.Chat -> Chat(listOf())
     }
 }
 
 @Composable
-fun App() {
-    // TODO: Desired interface - props.currentScreen
-    Messenger()
-}
-
-@Composable
-fun Messenger() {
+fun Messenger(openChat: (ChatId) -> Unit) {
     Column {
-        (0..5).forEach {
+        Text("All chats")
+
+        listOf(ChatId("kirill-natalia")).forEach {
             Button(
-                text = "chatId: $it, last message: bla blaa",
-                onClick = { }
+                text = "chatId: $it, last message: bla ha lol",
+                onClick = { openChat(it) }
             )
         }
     }
@@ -61,15 +60,15 @@ fun Messenger() {
 
 @Composable
 fun Chat(
-    state: ChatState = ChatState.sample(),
-    sendMessage: (String) -> Deferred<Boolean>,
-    navigateBack: () -> Unit = {}
+    messages: List<Message>
 ) {
-    Column(Spacing(5.dp)) {
-        Button("Back", navigateBack)
+    var current = + state { "" }
 
-        state.messages.forEach {
-            Text(it)
+    Column(Spacing(5.dp)) {
+        Button("Back")
+
+        messages.forEach {
+            Text(it.content().text)
         }
 
         Row(
@@ -82,8 +81,8 @@ fun Chat(
                 height = 50.dp
             ) {
                 TextField(
-                    value = state.current,
-                    onValueChange = { state.current = it },
+                    value = current.value,
+                    onValueChange = { current.value = it },
                     imeAction = ImeAction.Send,
                     onImeActionPerformed = {
                         throw error("send message not implemented")

@@ -82,7 +82,7 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
                         }
                     }
                 )
-            // this +/- logic probably needs testing of its own :)
+            // WATCH OUT: this +/- logic probably needs testing of its own :)
             val newMessages = messages - state.messages
             val newChatIds: List<ChatId> = newMessages.map { it.chatId() } - state.chats
             return Tuple(
@@ -143,6 +143,7 @@ sealed class Message {
 
     fun id() = when (this) { is Local -> this.id; is Remote -> this.id }
     fun chatId() = when (this) { is Local -> this.chatId; is Remote -> this.chatId }
+    fun content() = when (this) { is Local -> this.content; is Remote -> this.content }
 }
 
 data class MessageContent(val text: String)

@@ -166,6 +166,59 @@ Commit
 * Refactored AppStoreUnitTests.kt: removed boilerplate code that sets up store
 * Added tests for redelivery - passing
 
+----
+
+Next big challenges:
+How do we handle navigation. I want to start by using local state in our
+Composable functions. Later showcase how bad and not testable it will look like 
+when adding say deep links. By no means I want to argue the point that 
+navigation state always need be handled in the common state of the app from the start.
+All I am saying is that I can see problems when there are too many navigation
+transition variations. 
+
+But that sounds like a secondary matter. Here is the real problem:
+I have this nice Store that keeps track of the current app state 
+as well as updates to that state in response to some actions/events/messages 
+whatever you call them. And then I have compose that has a couple of ways
+to re-render the view. Now the simplest way is to create a class
+with @Model annotation and a var state that will be a reflection of the
+same named var in our store. Hell, why not just make our Store
+a @Model?
+
+I think this is what I will do: @Model State(var state...)
+
+I will put the state into the activity and inject it into the 
+top level @Composable App.
+This way every time the store updates its state we will 
+re-render the App.
+
+But that will most definitely be inefficient. First 
+I need to inspect how bad it really is. For that I will 
+probably need to make sure my daemon mock server is sending 
+updates to my client (and dispatching those updates).
+
+In any case, I am certain it will not work well. What we need
+for this to work well can be the following:
+
+* create even streams for different store changes (ie: redux selectors?)
+  and subscribe our views to them. The event values will also need to be
+  formatted in a simple way that the view can directly use
+  - not clear who will be responsible for this? Probably same code that navigates.
+    Yet another problem with local navigation state - will be harder to test
+  - a better way would probably be to pass entire state to each @Composable
+    and let it create the selector for itself and subscribe - 
+    very simple would be if we use something like Recompose.
+    This will give us very low level control over this
+    
+* create another set of @Model annotated classes that will be updated on every 
+  state change
+  - the problem of this approach is that first of all it will be very similar to 
+    the one desribed above, because if not, we will probably end up 
+    doing a lot of waisted work in computing this @Model instances say for every 
+    chat, when only one chat is active at a time. In other words, this @Model 
+    tree is a direct output of a given state, so it doesn't really get 'stored'
+    nicely. We will just be adding another level of incremental state management
+    to our system :(
 
 
 
