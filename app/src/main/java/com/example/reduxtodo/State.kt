@@ -6,7 +6,7 @@ import java.util.*
 // ideally the reducer will return something like this Flow<Action>
 // that would support running
 fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) : Tuple<AppState, Command<Action>> {
-    when (action) {
+    return when (action) {
         is Action.SendMessage -> {
             val outgoingMessage = Message.Local(
                 state.localUserId,
@@ -61,7 +61,7 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
                 )
             )
 
-            return Tuple(
+            Tuple(
                 state,
                 Command.Batch(
                     listOf(
@@ -82,11 +82,33 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
                         }
                     }
                 )
+
+            state.chatChangeListener?.let { (chatId, handler) ->
+                for (update in action.updates) {
+                    val updatedChatId = when (update) {
+                        is Update.DeleteMessage ->
+                            state.messages.find { it.id() == update.messageId }!!.chatId()
+                        is Update.NewMessage ->
+                            update.message.chatId()
+                    }
+                    if (updatedChatId == chatId) {
+                        handler()
+                        return@let
+                    }
+                }
+            }
+
             // WATCH OUT: this +/- logic probably needs testing of its own :)
             val newMessages = messages - state.messages
             val newChatIds: List<ChatId> = newMessages.map { it.chatId() } - state.chats
-            return Tuple(
+            Tuple(
                 state.copy(messages = messages, chats = state.chats + newChatIds),
+                Command.None()
+            )
+        }
+        is Action.AddListener -> {
+            Tuple(
+                state.copy(chatChangeListener = Pair(action.chatId, action.notify)),
                 Command.None()
             )
         }
@@ -95,19 +117,13 @@ fun appReducer(coroutineScope: CoroutineScope, action: Action, state: AppState) 
 
 sealed class Action {
     data class SendMessage(val chatId: ChatId, val messageContent: MessageContent) : Action()
-    // data class GetUpdates(val after: LocalDateTime) : Action()
-
-    // WATCH OUT: whats tricky about this method is that its used both outside
-    // of the reducer as well as a return command
     data class ApplyUpdates(val updates: List<Update>) : Action()
+
+    data class AddListener(val chatId: ChatId, val notify: () -> Unit) : Action()
 }
 
 sealed class Update {
     data class NewMessage(val message: Message) : Update()
-    // TODO: display delivery
-    // data class MessageDelivered(val messageId: MessageId) : Update()
-
-    // TODO: private
     data class DeleteMessage(val messageId: MessageId) : Update()
 }
 
@@ -116,7 +132,8 @@ data class AppState(
     val apiClient: ApiClient,
     val localUserId: UserId,
     val messages: List<Message> = listOf(),
-    val chats: List<ChatId> = listOf()
+    val chats: List<ChatId> = listOf(),
+    val chatChangeListener: Pair<ChatId, () -> Unit>? = null
 )
 
 data class UserId(val value: String)
@@ -141,9 +158,9 @@ sealed class Message {
         val timestamp: LocalDateTime = LocalDateTime.now()
     ) : Message()
 
-    fun id() = when (this) { is Local -> this.id; is Remote -> this.id }
-    fun chatId() = when (this) { is Local -> this.chatId; is Remote -> this.chatId }
-    fun content() = when (this) { is Local -> this.content; is Remote -> this.content }
+    fun id() = when (this) { is Local -> id; is Remote -> id }
+    fun chatId() = when (this) { is Local -> chatId; is Remote -> chatId }
+    fun content() = when (this) { is Local -> content; is Remote -> content }
 }
 
 data class MessageContent(val text: String)

@@ -14,13 +14,41 @@ import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.ThreadLocalRandom
 
+class MockApiClient() : ApiClient {
+    override fun sendAsync(message: Message.Local): Deferred<Result<Message.Remote, ApiClient.Error>> {
+        return GlobalScope.async {
+            delay(100)
+
+            Ok<Message.Remote, ApiClient.Error>(
+                Message.Remote(
+                    id = message.id,
+                    senderId = message.senderId,
+                    chatId = message.chatId,
+                    content = message.content,
+                    timestamp = message.timestamp
+                )
+            )
+        }
+    }
+}
+
 class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val store = AppStore(
+            state = AppState(
+                apiClient = MockApiClient(),
+                localUserId = UserId("kirill"),
+                chats = listOf(ChatId("kirill-natalia"))
+            ),
+            reducer = ::appReducer
+        )
+
         setContent {
             MaterialTheme {
-                App()
+                App(store = store)
             }
         }
     }
@@ -36,23 +64,31 @@ data class NavigationState(
     var screen: Screen = Screen.Chats
 )
 
+typealias AppStore = Store<AppState, Action>
+
 @Composable
-fun App(navigationState: NavigationState = NavigationState()) {
+fun App(
+    store: AppStore,
+    navigationState: NavigationState = NavigationState()
+) {
     when (val screen = navigationState.screen) {
-        is Screen.Chats -> Messenger(openChat = { chatId -> navigationState.screen = Screen.Chat(chatId) })
-        is Screen.Chat -> Chat(listOf())
+        is Screen.Chats -> Messenger(store, openChat = { chatId -> navigationState.screen = Screen.Chat(chatId) })
+        is Screen.Chat -> Chat(store, screen.chatId, dismiss = { navigationState.screen = Screen.Chats })
     }
 }
 
 @Composable
-fun Messenger(openChat: (ChatId) -> Unit) {
+fun Messenger(store: AppStore, openChat: (ChatId) -> Unit) {
     Column {
         Text("All chats")
 
-        listOf(ChatId("kirill-natalia")).forEach {
+        store.state.chats.forEach { chatId ->
+            val lastMessage = store.state.messages
+                .filter { message -> message.chatId() == chatId }.lastOrNull()
+            val lastMessageComponent = if (lastMessage == null) "" else "last message: ${lastMessage.content().text}"
             Button(
-                text = "chatId: $it, last message: bla ha lol",
-                onClick = { openChat(it) }
+                text = "chatId: ${chatId.value} $lastMessageComponent",
+                onClick = { openChat(chatId) }
             )
         }
     }
@@ -60,34 +96,42 @@ fun Messenger(openChat: (ChatId) -> Unit) {
 
 @Composable
 fun Chat(
-    messages: List<Message>
+    store: AppStore,
+    chatId: ChatId,
+    dismiss: () -> Unit
 ) {
-    var current = + state { "" }
+    val current = + state { "" }
+    fun messages(): List<Message> = store.state.messages.filter { it.chatId() == chatId }
 
-    Column(Spacing(5.dp)) {
-        Button("Back")
+    Recompose { recompose ->
+        store.dispatch(Action.AddListener(chatId, recompose))
 
-        messages.forEach {
-            Text(it.content().text)
-        }
+        Column(Spacing(5.dp)) {
+            Button("Back", onClick = dismiss)
 
-        Row(
-            crossAxisAlignment = CrossAxisAlignment.Center,
-            modifier = Spacing(10.dp)
-        ) {
-            Text("New message: ")
-            Container(
-                width = 100.dp,
-                height = 50.dp
+            messages().forEach {
+                Text(it.content().text)
+            }
+
+            Row(
+                crossAxisAlignment = CrossAxisAlignment.Center,
+                modifier = Spacing(10.dp)
             ) {
-                TextField(
-                    value = current.value,
-                    onValueChange = { current.value = it },
-                    imeAction = ImeAction.Send,
-                    onImeActionPerformed = {
-                        throw error("send message not implemented")
-                    }
-                )
+                Text("New message: ")
+                Container(
+                    width = 100.dp,
+                    height = 50.dp
+                ) {
+                    TextField(
+                        value = current.value,
+                        onValueChange = { current.value = it },
+                        imeAction = ImeAction.Send,
+                        onImeActionPerformed = {
+                            println("sending message..")
+                            store.dispatch(Action.SendMessage(chatId, MessageContent(current.value)))
+                        }
+                    )
+                }
             }
         }
     }
